@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,36 +11,33 @@ import (
 
 	"Exam/models"
 
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type MockUserStore struct {
+	users map[string]models.User
+}
+
+func (store *MockUserStore) CreateUser(username, password string) error {
+	store.users[username] = models.User{Username: username, Password: password}
+	return nil
+}
+
+func (store *MockUserStore) GetUser(username string) (models.User, error) {
+	user, exists := store.users[username]
+	if !exists {
+		return models.User{}, sql.ErrNoRows
+	}
+	return user, nil
+}
 
 func init() {
 	os.Setenv("JWT_SECRET_KEY", "mysecretkey")
 }
 
-// MockUserStore to use in tests
-type MockUserStore struct {
-	users map[string]string
-}
-
-func (store *MockUserStore) CreateUser(username, password string) error {
-	if _, exists := store.users[username]; exists {
-		return errors.New("user already exists")
-	}
-	store.users[username] = password
-	return nil
-}
-
-func (store *MockUserStore) GetUser(username string) (models.User, error) {
-	password, exists := store.users[username]
-	if !exists {
-		return models.User{}, errors.New("user not found")
-	}
-	return models.User{Username: username, Password: password}, nil
-}
-
 func TestRegisterHandler(t *testing.T) {
-	store := &MockUserStore{users: make(map[string]string)}
+	store := &MockUserStore{users: make(map[string]models.User)}
 
 	payload := `{"username":"testuser","password":"testpass"}`
 	req, err := http.NewRequest("POST", "/register", bytes.NewBufferString(payload))
@@ -52,18 +49,12 @@ func TestRegisterHandler(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	if status := rr.Code; status != http.StatusCreated {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
-	}
-
-	expected := `{"message":"User created successfully"}`
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
-	}
+	assert.Equal(t, http.StatusCreated, rr.Code, "handler returned wrong status code")
+	assert.JSONEq(t, `{"message":"User created successfully"}`, rr.Body.String(), "handler returned unexpected body")
 }
 
 func TestLoginHandler(t *testing.T) {
-	store := &MockUserStore{users: make(map[string]string)}
+	store := &MockUserStore{users: make(map[string]models.User)}
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("testpass"), bcrypt.DefaultCost)
 	store.CreateUser("testuser", string(hashedPassword))
 
@@ -77,22 +68,15 @@ func TestLoginHandler(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
-	}
+	assert.Equal(t, http.StatusOK, rr.Code, "handler returned wrong status code")
 
 	var response map[string]string
 	if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
 
-	if response["message"] != "Login successful" {
-		t.Errorf("handler returned unexpected message: got %v want %v", response["message"], "Login successful")
-	}
-
-	if response["token"] == "" {
-		t.Error("handler did not return a token")
-	}
+	assert.Equal(t, "Login successful", response["message"], "handler returned unexpected message")
+	assert.NotEmpty(t, response["token"], "handler did not return a token")
 }
 
 func TestLogoutHandler(t *testing.T) {
@@ -105,12 +89,6 @@ func TestLogoutHandler(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	if status := rr.Code; status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
-	}
-
-	expected := `{"message":"Logout successful"}`
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
-	}
+	assert.Equal(t, http.StatusOK, rr.Code, "handler returned wrong status code")
+	assert.JSONEq(t, `{"message":"Logout successful"}`, rr.Body.String(), "handler returned unexpected body")
 }
