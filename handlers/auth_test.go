@@ -3,24 +3,44 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
-	"Exam/config"
-	"Exam/database"
+	"Exam/models"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 func init() {
 	os.Setenv("JWT_SECRET_KEY", "mysecretkey")
-	database.InitDB(config.GetConfig())
+}
+
+// MockUserStore to use in tests
+type MockUserStore struct {
+	users map[string]string
+}
+
+func (store *MockUserStore) CreateUser(username, password string) error {
+	if _, exists := store.users[username]; exists {
+		return errors.New("user already exists")
+	}
+	store.users[username] = password
+	return nil
+}
+
+func (store *MockUserStore) GetUser(username string) (models.User, error) {
+	password, exists := store.users[username]
+	if !exists {
+		return models.User{}, errors.New("user not found")
+	}
+	return models.User{Username: username, Password: password}, nil
 }
 
 func TestRegisterHandler(t *testing.T) {
-	database.DB.Exec("DELETE FROM users") // Clean up before running the test
+	store := &MockUserStore{users: make(map[string]string)}
 
 	payload := `{"username":"testuser","password":"testpass"}`
 	req, err := http.NewRequest("POST", "/register", bytes.NewBufferString(payload))
@@ -28,7 +48,7 @@ func TestRegisterHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(RegisterHandler)
+	handler := RegisterHandler(store)
 
 	handler.ServeHTTP(rr, req)
 
@@ -36,21 +56,16 @@ func TestRegisterHandler(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
 	}
 
-	expected := map[string]string{"message": "User created successfully"}
-	var actual map[string]string
-	if err := json.NewDecoder(rr.Body).Decode(&actual); err != nil {
-		t.Fatalf("could not decode response: %v", err)
-	}
-
-	if actual["message"] != expected["message"] {
-		t.Errorf("handler returned unexpected body: got %v want %v", actual, expected)
+	expected := `{"message":"User created successfully"}`
+	if rr.Body.String() != expected {
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
 	}
 }
 
 func TestLoginHandler(t *testing.T) {
-	// Ensure the user exists
+	store := &MockUserStore{users: make(map[string]string)}
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("testpass"), bcrypt.DefaultCost)
-	database.DB.Exec("INSERT INTO users (username, password) VALUES ($1, $2)", "testuser", string(hashedPassword))
+	store.CreateUser("testuser", string(hashedPassword))
 
 	payload := `{"username":"testuser","password":"testpass"}`
 	req, err := http.NewRequest("POST", "/login", bytes.NewBufferString(payload))
@@ -58,7 +73,7 @@ func TestLoginHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(LoginHandler)
+	handler := LoginHandler(store)
 
 	handler.ServeHTTP(rr, req)
 
@@ -94,13 +109,8 @@ func TestLogoutHandler(t *testing.T) {
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	expected := map[string]string{"message": "Logout successful"}
-	var actual map[string]string
-	if err := json.NewDecoder(rr.Body).Decode(&actual); err != nil {
-		t.Fatalf("could not decode response: %v", err)
-	}
-
-	if actual["message"] != expected["message"] {
-		t.Errorf("handler returned unexpected body: got %v want %v", actual, expected)
+	expected := `{"message":"Logout successful"}`
+	if rr.Body.String() != expected {
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
 	}
 }

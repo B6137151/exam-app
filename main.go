@@ -20,8 +20,10 @@ func main() {
 	cfg := config.GetConfig()
 	database.InitDB(cfg)
 
-	http.HandleFunc("/register", handlers.RegisterHandler)
-	http.HandleFunc("/login", handlers.LoginHandler)
+	store := &handlers.RealUserStore{}
+
+	http.HandleFunc("/register", handlers.RegisterHandler(store))
+	http.HandleFunc("/login", handlers.LoginHandler(store))
 	http.HandleFunc("/logout", handlers.LogoutHandler)
 
 	fmt.Println("Server is running on port 8080")
