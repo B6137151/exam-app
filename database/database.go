@@ -1,7 +1,6 @@
 package database
 
 import (
-	"Exam/config"
 	"database/sql"
 	"fmt"
 	"log"
@@ -11,20 +10,34 @@ import (
 
 var DB *sql.DB
 
-func InitDB(cfg *config.Config) {
-	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+type Config struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	DBName   string
+	SSLMode  string
+}
 
+func InitDB(cfg Config) {
 	var err error
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode)
 	DB, err = sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal("Failed to connect to the database:", err)
+		log.Fatalf("Error opening database: %q", err)
 	}
 
-	err = DB.Ping()
-	if err != nil {
-		log.Fatal("Failed to ping the database:", err)
+	if err = DB.Ping(); err != nil {
+		log.Fatalf("Error connecting to the database: %q", err)
 	}
 
-	fmt.Println("Connected to the database successfully")
+	fmt.Println("Connected to the database!")
+}
+
+// CloseDB closes the database connection
+func CloseDB() {
+	if DB != nil {
+		DB.Close()
+	}
 }

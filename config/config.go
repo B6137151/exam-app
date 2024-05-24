@@ -2,29 +2,31 @@ package config
 
 import (
 	"os"
+	"strconv"
+
+	"Exam/database"
 )
 
-type Config struct {
-	DBHost     string
-	DBPort     string
-	DBUser     string
-	DBPassword string
-	DBName     string
-}
+func GetConfig() database.Config {
+	port, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	if err != nil {
+		port = 5433 // default port
+	}
 
-func GetConfig() *Config {
-	return &Config{
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "postgres"),
-		DBPassword: getEnv("DB_PASSWORD", "1234"),
-		DBName:     getEnv("DB_NAME", "postgres"),
+	return database.Config{
+		Host:     getEnv("DB_HOST", "localhost"),
+		Port:     port,
+		User:     getEnv("DB_USER", "postgres"),
+		Password: getEnv("DB_PASSWORD", "1234"),
+		DBName:   getEnv("DB_NAME", "Exam"),
+		SSLMode:  getEnv("DB_SSLMODE", "disable"),
 	}
 }
 
-func getEnv(key, defaultVal string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
+func getEnv(key, defaultValue string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		return defaultValue
 	}
-	return defaultVal
+	return value
 }
