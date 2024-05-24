@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -42,6 +43,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err = database.DB.Exec("INSERT INTO users (username, password) VALUES ($1, $2)", creds.Username, string(hashedPassword))
 	if err != nil {
+		log.Printf("Error creating user: %v", err)
 		http.Error(w, "Error creating user", http.StatusInternalServerError)
 		return
 	}
@@ -63,6 +65,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	var storedCreds models.User
 	err = database.DB.QueryRow("SELECT id, username, password FROM users WHERE username=$1", creds.Username).Scan(&storedCreds.ID, &storedCreds.Username, &storedCreds.Password)
 	if err == sql.ErrNoRows || bcrypt.CompareHashAndPassword([]byte(storedCreds.Password), []byte(creds.Password)) != nil {
+		log.Printf("Invalid credentials: %v", err)
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
@@ -78,6 +81,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
+		log.Printf("Error generating token: %v", err)
 		http.Error(w, "Error generating token", http.StatusInternalServerError)
 		return
 	}
