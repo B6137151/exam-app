@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/joho/godotenv"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -22,10 +23,14 @@ func main() {
 
 	store := &handlers.RealUserStore{}
 
-	http.HandleFunc("/register", handlers.RegisterHandler(store))
-	http.HandleFunc("/login", handlers.LoginHandler(store))
-	http.HandleFunc("/logout", handlers.LogoutHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/register", handlers.RegisterHandler(store))
+	mux.HandleFunc("/login", handlers.LoginHandler(store))
+	mux.HandleFunc("/logout", handlers.LogoutHandler)
+
+	// CORS middleware
+	handler := cors.Default().Handler(mux)
 
 	fmt.Println("Server is running on port 8080")
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8080", handler)
 }

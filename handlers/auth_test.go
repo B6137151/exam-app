@@ -19,8 +19,8 @@ type MockUserStore struct {
 	users map[string]models.User
 }
 
-func (store *MockUserStore) CreateUser(username, password string) error {
-	store.users[username] = models.User{Username: username, Password: password}
+func (store *MockUserStore) CreateUser(username, password, email, tel string) error {
+	store.users[username] = models.User{Username: username, Password: password, Email: email, Tel: tel}
 	return nil
 }
 
@@ -39,7 +39,7 @@ func init() {
 func TestRegisterHandler(t *testing.T) {
 	store := &MockUserStore{users: make(map[string]models.User)}
 
-	payload := `{"username":"testuser","password":"testpass"}`
+	payload := `{"username":"testuser","password":"testpass","email":"test@example.com","tel":"1234567890"}`
 	req, err := http.NewRequest("POST", "/register", bytes.NewBufferString(payload))
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestRegisterHandler(t *testing.T) {
 func TestLoginHandler(t *testing.T) {
 	store := &MockUserStore{users: make(map[string]models.User)}
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("testpass"), bcrypt.DefaultCost)
-	store.CreateUser("testuser", string(hashedPassword))
+	store.CreateUser("testuser", string(hashedPassword), "test@example.com", "1234567890")
 
 	payload := `{"username":"testuser","password":"testpass"}`
 	req, err := http.NewRequest("POST", "/login", bytes.NewBufferString(payload))

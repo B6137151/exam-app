@@ -18,6 +18,8 @@ var jwtKey = []byte(os.Getenv("JWT_SECRET_KEY"))
 type Credentials struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Email    string `json:"email"`
+	Tel      string `json:"tel"`
 }
 
 type Claims struct {
@@ -27,21 +29,21 @@ type Claims struct {
 
 // UserStore interface to abstract database operations
 type UserStore interface {
-	CreateUser(username, password string) error
+	CreateUser(username, password, email, tel string) error
 	GetUser(username string) (models.User, error)
 }
 
 // RealUserStore implements UserStore interface
 type RealUserStore struct{}
 
-func (store *RealUserStore) CreateUser(username, password string) error {
-	_, err := database.DB.Exec("INSERT INTO users (username, password) VALUES ($1, $2)", username, password)
+func (store *RealUserStore) CreateUser(username, password, email, tel string) error {
+	_, err := database.DB.Exec("INSERT INTO users (username, password, email, tel) VALUES ($1, $2, $3, $4)", username, password, email, tel)
 	return err
 }
 
 func (store *RealUserStore) GetUser(username string) (models.User, error) {
 	var user models.User
-	err := database.DB.QueryRow("SELECT id, username, password FROM users WHERE username=$1", username).Scan(&user.ID, &user.Username, &user.Password)
+	err := database.DB.QueryRow("SELECT id, username, password, email, tel FROM users WHERE username=$1", username).Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Tel)
 	return user, err
 }
 
@@ -60,7 +62,7 @@ func RegisterHandler(store UserStore) http.HandlerFunc {
 			return
 		}
 
-		err = store.CreateUser(creds.Username, string(hashedPassword))
+		err = store.CreateUser(creds.Username, string(hashedPassword), creds.Email, creds.Tel)
 		if err != nil {
 			http.Error(w, "Error creating user", http.StatusInternalServerError)
 			return
